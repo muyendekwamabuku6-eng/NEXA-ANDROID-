@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEXA — Social + Jobs</title>
+<style>
+body{font-family:system-ui,Arial;margin:0;background:#f5f7fb;color:#18202a}
+header{background:#111827;color:#fff;padding:16px;position:sticky;top:0;z-index:2}
+main{max-width:900px;margin:auto;padding:18px}
+.card{background:#fff;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 2px 12px #0001}
+input,textarea,button{font:inherit;padding:10px;border-radius:9px;border:1px solid #ccd2dc;box-sizing:border-box}
+input,textarea{width:100%;margin:5px 0 10px} button{cursor:pointer;background:#111827;color:#fff}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px} .hidden{display:none}
+.small{color:#667085;font-size:.9rem}.tabs button{background:#fff;color:#111827}
+.post{border-top:1px solid #eee;padding-top:12px;margin-top:12px}
+</style>
+</head>
+<body>
+<header><strong>NEXA</strong><div class="small" style="color:#cbd5e1">Social + opportunities</div>
+<nav><button onclick="show('home')">Home</button><button onclick="show('jobs')">Jobs</button><button onclick="show('account')">Account</button></nav></header>
+<main>
+<section id="home">
+<div class="card">
+<h2>Feed</h2>
+<textarea id="postBody" placeholder="What's happening?"></textarea>
+<button onclick="createPost()">Post</button>
+<div id="feed"></div>
+</div>
+</section>
+<section id="jobs" class="hidden">
+<div class="card"><h2>Jobs</h2><div id="jobsList"></div></div>
+<div class="card"><h3>Post a job</h3>
+<input id="company" placeholder="Company name"><input id="jobTitle" placeholder="Job title">
+<textarea id="jobDesc" placeholder="Description"></textarea><input id="jobLocation" placeholder="Location">
+<label><input id="remote" type="checkbox" style="width:auto"> Remote</label><br><br>
+<button onclick="createJob()">Publish job</button></div>
+</section>
+<section id="account" class="hidden">
+<div class="card"><h2>Account</h2><div id="me"></div>
+<h3>Register</h3><input id="rName" placeholder="Display name"><input id="rUser" placeholder="Username"><input id="rEmail" placeholder="Email"><input id="rPass" type="password" placeholder="Password (10+ characters)"><button onclick="register()">Create account</button>
+<h3>Login</h3><input id="lEmail" placeholder="Email"><input id="lPass" type="password" placeholder="Password"><button onclick="login()">Login</button>
+<br><br><button onclick="logout()">Logout</button></div>
+</section>
+</main>
+<script>
+const api=(url,opts={})=>fetch(url,{credentials:'include',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});
+function show(id){for(const x of ['home','jobs','account'])document.getElementById(x).classList.toggle('hidden',x!==id); if(id==='home')loadFeed();if(id==='jobs')loadJobs();if(id==='account')loadMe();}
+async function loadMe(){const r=await api('/api/me');document.getElementById('me').textContent=r.ok?`Logged in as @${(await r.json()).user.username}`:'Not logged in';}
+async function register(){const body={displayName:rName.value,username:rUser.value,email:rEmail.value,password:rPass.value};const r=await api('/api/auth/register',{method:'POST',body:JSON.stringify(body)});alert(r.ok?'Account created':'Registration failed');loadMe();}
+async function login(){const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:lEmail.value,password:lPass.value})});alert(r.ok?'Logged in':'Login failed');loadMe();loadFeed();}
+async function logout(){await api('/api/auth/logout',{method:'POST'});loadMe();}
+async function loadFeed(){const r=await api('/api/posts');const d=await r.json();feed.innerHTML=(d.posts||[]).map(p=>`<div class="post"><b>${esc(p.display_name)}</b> <span class="small">@${esc(p.username)}</span><p>${esc(p.body)}</p><span class="small">♥ ${p.likes} · 💬 ${p.comments}</span> <button onclick="likePost('${p.id}')">Like</button></div>`).join('')||'<p class="small">No posts yet.</p>';}
+async function createPost(){const r=await api('/api/posts',{method:'POST',body:JSON.stringify({body:postBody.value})});if(r.ok){postBody.value='';loadFeed()}else alert((await r.json()).error||'Please log in');}
+async function likePost(id){const r=await api('/api/posts/'+id+'/like',{method:'POST'});if(!r.ok)alert('Please log in');loadFeed();}
+async function loadJobs(){const r=await api('/api/jobs');const d=await r.json();jobsList.innerHTML=(d.jobs||[]).map(j=>`<div class="card"><b>${esc(j.title)}</b><div>${esc(j.company_name)} · ${esc(j.location||'')}</div><p>${esc(j.description)}</p><button onclick="applyJob('${j.id}')">Apply</button></div>`).join('')||'<p class="small">No jobs yet.</p>';}
+async function createJob(){const body={companyName:company.value,title:jobTitle.value,description:jobDesc.value,location:jobLocation.value,remote:remote.checked,skills:[]};const r=await api('/api/jobs',{method:'POST',body:JSON.stringify(body)});alert(r.ok?'Job published':'Could not publish job; log in first');if(r.ok)loadJobs();}
+async function applyJob(id){const r=await api('/api/jobs/'+id+'/apply',{method:'POST',body:JSON.stringify({coverNote:''})});alert(r.ok?'Application submitted':((await r.json()).error||'Please log in'));}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+loadFeed();loadJobs();loadMe();
+</script>
+</body></html>
